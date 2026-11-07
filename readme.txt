@@ -1,10 +1,10 @@
 === Shakewell Two-way Relationships for ACF ===
-Contributors: shakewell
+Contributors: shakewellagency
 Tags: acf, relationship, post object, bidirectional, advanced custom fields
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ When a post is linked to another through an ACF relationship or post object fiel
 
 == Description ==
 
-Link a venue to an event space and the event space shows the venue too. Remove the link on either side and it disappears from both.
+Link a book to its author and the author shows the book too. Remove the link on either side and it disappears from both.
 
 You tell the plugin which fields belong together. It then keeps both posts in step whenever Advanced Custom Fields saves one of them. It stores values exactly as ACF does, so nothing needs migrating and your REST output and templates do not change.
 
@@ -37,7 +37,7 @@ Add the pairs with the `shakewell_relationship_sync_pairs` filter, for example i
 add_filter( 'shakewell_relationship_sync_pairs', function () {
 	return array(
 		// Same field name in both field groups.
-		array( 'venue_event_space_relationship', 'venue_event_space_relationship' ),
+		array( 'book_author_relationship', 'book_author_relationship' ),
 		// Different names, matched by field key.
 		array( 'field_64a1b2c3d4e5f', 'field_64a1b2c3d4e60' ),
 	);
@@ -98,6 +98,9 @@ Please do not open a public issue. Follow SECURITY.md in the plugin's repository
 Post 2 Post for ACF pairs fields that share a name across field groups. Add one pair per shared name with the filter, using the same field name on both sides. Stored data is already in the right format. The plugin stays silent while Post 2 Post for ACF is active, so you can install both, then deactivate and delete Post 2 Post for ACF. Run `wp shakewell-relationship-sync repair --dry-run` afterwards to confirm nothing is missing. The Post 2 Post tuning filters (`acf/post2post/...`) have no equivalent.
 
 == Changelog ==
+
+= 0.1.1 =
+* Readme and tests use neutral examples.
 
 = 0.1.0 =
 * First release.
