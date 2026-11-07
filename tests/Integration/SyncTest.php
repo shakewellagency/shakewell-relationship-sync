@@ -2,7 +2,7 @@
 /**
  * Two-way relationship sync, against real ACF with local field groups.
  *
- * Mirrors the Merivale venue / event space / event / precinct set-up the code was first written for.
+ * Uses book, author, review and series post types, with paired relationship and post object fields.
  *
  * @package Shakewell\RelationshipSync
  */
@@ -16,50 +16,50 @@ use WP_UnitTestCase;
 
 final class SyncTest extends WP_UnitTestCase {
 
-	private int $venue;
-	private int $venue2;
-	private int $venue3;
-	private int $space;
-	private int $space2;
-	private int $event;
-	private int $event2;
-	private int $precinct;
+	private int $book;
+	private int $book2;
+	private int $book3;
+	private int $author;
+	private int $author2;
+	private int $review;
+	private int $review2;
+	private int $series;
 
 	public function set_up(): void {
 		parent::set_up();
-		foreach ( array( 'venue', 'event_space', 'event', 'precinct' ) as $type ) {
+		foreach ( array( 'book', 'author', 'review', 'series' ) as $type ) {
 			register_post_type( $type );
 		}
 		add_filter(
 			'shakewell_relationship_sync_pairs',
 			static fn() => array(
-				array( 'venue_event_space_relationship', 'venue_event_space_relationship' ),
-				array( 'event_venue', 'event_venue' ),
-				array( 'venue_parent_precinct', 'venue_parent_precinct' ),
-				array( 'field_venue_featured', 'field_event_featured' ),
+				array( 'book_author_relationship', 'book_author_relationship' ),
+				array( 'review_book', 'review_book' ),
+				array( 'book_parent_series', 'book_parent_series' ),
+				array( 'field_book_featured', 'field_review_featured' ),
 			)
 		);
-		$this->group( 'venue', array(
-			$this->field( 'field_venue_ev', 'event_venue', 'relationship' ),
-			$this->field( 'field_venue_es', 'venue_event_space_relationship', 'relationship' ),
-			$this->field( 'field_venue_pp', 'venue_parent_precinct', 'post_object', array( 'multiple' => 0 ) ),
-			$this->field( 'field_venue_featured', 'featured_events', 'relationship', array( 'max' => 2 ) ),
+		$this->group( 'book', array(
+			$this->field( 'field_book_rv', 'review_book', 'relationship' ),
+			$this->field( 'field_book_au', 'book_author_relationship', 'relationship' ),
+			$this->field( 'field_book_pp', 'book_parent_series', 'post_object', array( 'multiple' => 0 ) ),
+			$this->field( 'field_book_featured', 'featured_reviews', 'relationship', array( 'max' => 2 ) ),
 		) );
-		$this->group( 'precinct', array( $this->field( 'field_precinct_pp', 'venue_parent_precinct', 'relationship' ) ) );
-		$this->group( 'event', array(
-			$this->field( 'field_event_ev', 'event_venue', 'post_object', array( 'multiple' => 1 ) ),
-			$this->field( 'field_event_featured', 'featuring_venue', 'post_object', array( 'multiple' => 0 ) ),
+		$this->group( 'series', array( $this->field( 'field_series_pp', 'book_parent_series', 'relationship' ) ) );
+		$this->group( 'review', array(
+			$this->field( 'field_review_rv', 'review_book', 'post_object', array( 'multiple' => 1 ) ),
+			$this->field( 'field_review_featured', 'featured_book', 'post_object', array( 'multiple' => 0 ) ),
 		) );
-		$this->group( 'event_space', array( $this->field( 'field_space_es', 'venue_event_space_relationship', 'relationship' ) ) );
+		$this->group( 'author', array( $this->field( 'field_author_au', 'book_author_relationship', 'relationship' ) ) );
 
-		$this->venue    = self::factory()->post->create( array( 'post_type' => 'venue' ) );
-		$this->venue2   = self::factory()->post->create( array( 'post_type' => 'venue' ) );
-		$this->venue3   = self::factory()->post->create( array( 'post_type' => 'venue' ) );
-		$this->space    = self::factory()->post->create( array( 'post_type' => 'event_space' ) );
-		$this->space2   = self::factory()->post->create( array( 'post_type' => 'event_space' ) );
-		$this->event    = self::factory()->post->create( array( 'post_type' => 'event' ) );
-		$this->event2   = self::factory()->post->create( array( 'post_type' => 'event' ) );
-		$this->precinct = self::factory()->post->create( array( 'post_type' => 'precinct' ) );
+		$this->book    = self::factory()->post->create( array( 'post_type' => 'book' ) );
+		$this->book2   = self::factory()->post->create( array( 'post_type' => 'book' ) );
+		$this->book3   = self::factory()->post->create( array( 'post_type' => 'book' ) );
+		$this->author    = self::factory()->post->create( array( 'post_type' => 'author' ) );
+		$this->author2   = self::factory()->post->create( array( 'post_type' => 'author' ) );
+		$this->review    = self::factory()->post->create( array( 'post_type' => 'review' ) );
+		$this->review2   = self::factory()->post->create( array( 'post_type' => 'review' ) );
+		$this->series = self::factory()->post->create( array( 'post_type' => 'series' ) );
 	}
 
 	private function field( string $key, string $name, string $type, array $extra = array() ): array {
@@ -90,49 +90,49 @@ final class SyncTest extends WP_UnitTestCase {
 	}
 
 	public function test_linking_adds_the_back_link_in_acf_format(): void {
-		$this->save( 'field_event_ev', array( $this->venue, $this->venue2 ), $this->event );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue, 'event_venue' ) );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue2, 'event_venue' ) );
-		$this->assertSame( 'field_venue_ev', get_post_meta( $this->venue, '_event_venue', true ) );
+		$this->save( 'field_review_rv', array( $this->book, $this->book2 ), $this->review );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book, 'review_book' ) );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book2, 'review_book' ) );
+		$this->assertSame( 'field_book_rv', get_post_meta( $this->book, '_review_book', true ) );
 	}
 
 	public function test_both_directions_work(): void {
-		$this->save( 'field_space_es', array( $this->venue ), $this->space );
-		$this->assertSame( $this->strings( $this->space ), $this->stored( $this->venue, 'venue_event_space_relationship' ) );
-		$this->save( 'field_venue_es', array( $this->space, $this->space2 ), $this->venue );
-		$this->assertSame( $this->strings( $this->venue ), $this->stored( $this->space2, 'venue_event_space_relationship' ) );
+		$this->save( 'field_author_au', array( $this->book ), $this->author );
+		$this->assertSame( $this->strings( $this->author ), $this->stored( $this->book, 'book_author_relationship' ) );
+		$this->save( 'field_book_au', array( $this->author, $this->author2 ), $this->book );
+		$this->assertSame( $this->strings( $this->book ), $this->stored( $this->author2, 'book_author_relationship' ) );
 	}
 
 	public function test_back_link_is_appended_and_order_is_kept(): void {
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event2 );
-		$this->assertSame( $this->strings( $this->event, $this->event2 ), $this->stored( $this->venue, 'event_venue' ) );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review2 );
+		$this->assertSame( $this->strings( $this->review, $this->review2 ), $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_unlinking_removes_the_back_link_and_keeps_the_others(): void {
-		$this->save( 'field_event_ev', array( $this->venue, $this->venue2 ), $this->event );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event2 );
-		$this->save( 'field_event_ev', array( $this->venue2 ), $this->event );
-		$this->assertSame( $this->strings( $this->event2 ), $this->stored( $this->venue, 'event_venue' ) );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue2, 'event_venue' ) );
-		$this->save( 'field_event_ev', array(), $this->event );
-		$this->assertSame( array(), $this->stored( $this->venue2, 'event_venue' ) );
+		$this->save( 'field_review_rv', array( $this->book, $this->book2 ), $this->review );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review2 );
+		$this->save( 'field_review_rv', array( $this->book2 ), $this->review );
+		$this->assertSame( $this->strings( $this->review2 ), $this->stored( $this->book, 'review_book' ) );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book2, 'review_book' ) );
+		$this->save( 'field_review_rv', array(), $this->review );
+		$this->assertSame( array(), $this->stored( $this->book2, 'review_book' ) );
 	}
 
 	public function test_replacing_moves_the_link(): void {
-		$this->save( 'field_venue_es', array( $this->space ), $this->venue );
-		$this->save( 'field_venue_es', array( $this->space2 ), $this->venue );
-		$this->assertSame( array(), $this->stored( $this->space, 'venue_event_space_relationship' ) );
-		$this->assertSame( $this->strings( $this->venue ), $this->stored( $this->space2, 'venue_event_space_relationship' ) );
+		$this->save( 'field_book_au', array( $this->author ), $this->book );
+		$this->save( 'field_book_au', array( $this->author2 ), $this->book );
+		$this->assertSame( array(), $this->stored( $this->author, 'book_author_relationship' ) );
+		$this->assertSame( $this->strings( $this->book ), $this->stored( $this->author2, 'book_author_relationship' ) );
 	}
 
 	public function test_relinking_does_not_duplicate(): void {
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$before = get_post_meta( $this->venue );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue, 'event_venue' ) );
-		$this->assertSame( $before, get_post_meta( $this->venue ) );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$before = get_post_meta( $this->book );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book, 'review_book' ) );
+		$this->assertSame( $before, get_post_meta( $this->book ) );
 	}
 
 	public function test_saving_both_sides_does_not_loop_and_is_stable(): void {
@@ -145,58 +145,58 @@ final class SyncTest extends WP_UnitTestCase {
 			},
 			12
 		);
-		$this->save( 'field_venue_es', array( $this->space ), $this->venue );
+		$this->save( 'field_book_au', array( $this->author ), $this->book );
 		$this->assertSame( 1, $runs, 'One save runs the filter once: the back-link write does not re-enter it.' );
-		$this->save( 'field_space_es', array( $this->venue ), $this->space );
-		$this->assertSame( $this->strings( $this->space ), $this->stored( $this->venue, 'venue_event_space_relationship' ) );
-		$this->assertSame( $this->strings( $this->venue ), $this->stored( $this->space, 'venue_event_space_relationship' ) );
+		$this->save( 'field_author_au', array( $this->book ), $this->author );
+		$this->assertSame( $this->strings( $this->author ), $this->stored( $this->book, 'book_author_relationship' ) );
+		$this->assertSame( $this->strings( $this->book ), $this->stored( $this->author, 'book_author_relationship' ) );
 	}
 
 	public function test_post_object_single_side_stores_a_string_and_clears_to_empty(): void {
-		$this->save( 'field_precinct_pp', array( $this->venue, $this->venue2 ), $this->precinct );
-		$this->assertSame( (string) $this->precinct, $this->stored( $this->venue, 'venue_parent_precinct' ) );
-		$this->save( 'field_venue_pp', $this->precinct, $this->venue3 );
-		$this->assertSame( $this->strings( $this->venue, $this->venue2, $this->venue3 ), $this->stored( $this->precinct, 'venue_parent_precinct' ) );
-		$this->save( 'field_venue_pp', '', $this->venue3 );
-		$this->assertSame( $this->strings( $this->venue, $this->venue2 ), $this->stored( $this->precinct, 'venue_parent_precinct' ) );
-		$this->save( 'field_precinct_pp', array( $this->venue2 ), $this->precinct );
-		$this->assertSame( '', $this->stored( $this->venue, 'venue_parent_precinct' ) );
+		$this->save( 'field_series_pp', array( $this->book, $this->book2 ), $this->series );
+		$this->assertSame( (string) $this->series, $this->stored( $this->book, 'book_parent_series' ) );
+		$this->save( 'field_book_pp', $this->series, $this->book3 );
+		$this->assertSame( $this->strings( $this->book, $this->book2, $this->book3 ), $this->stored( $this->series, 'book_parent_series' ) );
+		$this->save( 'field_book_pp', '', $this->book3 );
+		$this->assertSame( $this->strings( $this->book, $this->book2 ), $this->stored( $this->series, 'book_parent_series' ) );
+		$this->save( 'field_series_pp', array( $this->book2 ), $this->series );
+		$this->assertSame( '', $this->stored( $this->book, 'book_parent_series' ) );
 	}
 
 	public function test_post_object_multiple_is_an_array_of_strings(): void {
-		$this->save( 'field_venue_ev', array( $this->event ), $this->venue );
-		$this->assertSame( $this->strings( $this->venue ), $this->stored( $this->event, 'event_venue' ) );
+		$this->save( 'field_book_rv', array( $this->review ), $this->book );
+		$this->assertSame( $this->strings( $this->book ), $this->stored( $this->review, 'review_book' ) );
 	}
 
 	public function test_a_single_side_that_already_has_another_post_is_left_alone(): void {
-		$this->save( 'field_precinct_pp', array( $this->venue ), $this->precinct );
-		$other = self::factory()->post->create( array( 'post_type' => 'precinct' ) );
-		$this->save( 'field_precinct_pp', array( $this->venue ), $other );
-		$this->assertSame( (string) $this->precinct, $this->stored( $this->venue, 'venue_parent_precinct' ) );
-		$this->assertSame( $this->strings( $this->venue ), $this->stored( $other, 'venue_parent_precinct' ) );
+		$this->save( 'field_series_pp', array( $this->book ), $this->series );
+		$other = self::factory()->post->create( array( 'post_type' => 'series' ) );
+		$this->save( 'field_series_pp', array( $this->book ), $other );
+		$this->assertSame( (string) $this->series, $this->stored( $this->book, 'book_parent_series' ) );
+		$this->assertSame( $this->strings( $this->book ), $this->stored( $other, 'book_parent_series' ) );
 	}
 
 	public function test_a_relationship_side_at_its_max_is_left_alone(): void {
-		// Different field names, paired by key, with a max of 2 on the venue side.
-		$e3 = self::factory()->post->create( array( 'post_type' => 'event' ) );
-		foreach ( array( $this->event, $this->event2, $e3 ) as $event ) {
-			$this->save( 'field_event_featured', $this->venue, $event );
+		// Different field names, paired by key, with a max of 2 on the book side.
+		$r3 = self::factory()->post->create( array( 'post_type' => 'review' ) );
+		foreach ( array( $this->review, $this->review2, $r3 ) as $review ) {
+			$this->save( 'field_review_featured', $this->book, $review );
 		}
-		$this->assertSame( $this->strings( $this->event, $this->event2 ), $this->stored( $this->venue, 'featured_events' ) );
+		$this->assertSame( $this->strings( $this->review, $this->review2 ), $this->stored( $this->book, 'featured_reviews' ) );
 	}
 
 	public function test_pairs_may_use_different_field_keys(): void {
-		$this->save( 'field_event_featured', $this->venue, $this->event );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue, 'featured_events' ) );
-		$this->save( 'field_venue_featured', array( $this->event2 ), $this->venue );
-		$this->assertSame( '', $this->stored( $this->event, 'featuring_venue' ) );
-		$this->assertSame( (string) $this->venue, $this->stored( $this->event2, 'featuring_venue' ) );
+		$this->save( 'field_review_featured', $this->book, $this->review );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book, 'featured_reviews' ) );
+		$this->save( 'field_book_featured', array( $this->review2 ), $this->book );
+		$this->assertSame( '', $this->stored( $this->review, 'featured_book' ) );
+		$this->assertSame( (string) $this->book, $this->stored( $this->review2, 'featured_book' ) );
 	}
 
 	public function test_unpaired_fields_are_ignored(): void {
 		remove_all_filters( 'shakewell_relationship_sync_pairs' );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$this->assertSame( '', $this->stored( $this->venue, 'event_venue' ) );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$this->assertSame( '', $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_malformed_pairs_are_dropped(): void {
@@ -205,16 +205,16 @@ final class SyncTest extends WP_UnitTestCase {
 	}
 
 	public function test_unknown_targets_revisions_and_non_post_locations_are_ignored(): void {
-		$this->save( 'field_event_ev', array( $this->venue, 999999 ), $this->event );
+		$this->save( 'field_review_rv', array( $this->book, 999999 ), $this->review );
 		$this->assertSame( array(), get_post_meta( 999999 ) );
-		$revision = wp_insert_post( array( 'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $this->event ) );
+		$revision = wp_insert_post( array( 'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $this->review ) );
 		$this->assertTrue( (bool) wp_is_post_revision( $revision ) );
-		$field    = acf_get_field( 'field_event_ev' );
-		$this->assertSame( array( $this->venue2 ), Sync::on_update( array( $this->venue2 ), (int) $revision, $field ) );
-		Sync::on_update( array( $this->venue2 ), 'options', $field );
-		Sync::on_update( array( $this->venue2 ), 0, $field );
-		Sync::on_update( array( $this->venue2 ), 'user_1', $field );
-		$this->assertSame( '', $this->stored( $this->venue2, 'event_venue' ) );
+		$field    = acf_get_field( 'field_review_rv' );
+		$this->assertSame( array( $this->book2 ), Sync::on_update( array( $this->book2 ), (int) $revision, $field ) );
+		Sync::on_update( array( $this->book2 ), 'options', $field );
+		Sync::on_update( array( $this->book2 ), 0, $field );
+		Sync::on_update( array( $this->book2 ), 'user_1', $field );
+		$this->assertSame( '', $this->stored( $this->book2, 'review_book' ) );
 	}
 
 	public function test_nothing_is_hooked_on_trash_restore_or_delete(): void {
@@ -226,58 +226,58 @@ final class SyncTest extends WP_UnitTestCase {
 				}
 			}
 		}
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		wp_trash_post( $this->event );
-		wp_untrash_post( $this->event );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue, 'event_venue' ) );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		wp_trash_post( $this->review );
+		wp_untrash_post( $this->review );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_trashed_posts_are_linked_and_unlinked_like_any_other(): void {
-		wp_trash_post( $this->venue );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue, 'event_venue' ) );
-		$this->save( 'field_event_ev', array(), $this->event );
-		$this->assertSame( array(), $this->stored( $this->venue, 'event_venue' ) );
+		wp_trash_post( $this->book );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book, 'review_book' ) );
+		$this->save( 'field_review_rv', array(), $this->review );
+		$this->assertSame( array(), $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_a_user_who_cannot_edit_the_other_post_still_gets_the_back_link(): void {
 		// Same as the original mu-plugin: no capability check on the other post.
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
-		$this->assertFalse( current_user_can( 'edit_post', $this->venue ) );
-		$this->save( 'field_event_ev', array( $this->venue ), $this->event );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue, 'event_venue' ) );
+		$this->assertFalse( current_user_can( 'edit_post', $this->book ) );
+		$this->save( 'field_review_rv', array( $this->book ), $this->review );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_random_saves_leave_relationship_pairs_consistent(): void {
 		mt_srand( 42 );
-		$venues = array( $this->venue, $this->venue2, $this->venue3 );
-		$spaces = array( $this->space, $this->space2 );
+		$books = array( $this->book, $this->book2, $this->book3 );
+		$authors = array( $this->author, $this->author2 );
 		for ( $i = 0; $i < 60; $i++ ) {
 			if ( mt_rand( 0, 1 ) ) {
-				shuffle( $spaces );
-				$this->save( 'field_venue_es', array_slice( $spaces, 0, mt_rand( 0, 2 ) ), $venues[ mt_rand( 0, 2 ) ] );
+				shuffle( $authors );
+				$this->save( 'field_book_au', array_slice( $authors, 0, mt_rand( 0, 2 ) ), $books[ mt_rand( 0, 2 ) ] );
 			} else {
-				shuffle( $venues );
-				$this->save( 'field_space_es', array_slice( $venues, 0, mt_rand( 0, 3 ) ), $spaces[ mt_rand( 0, 1 ) ] );
+				shuffle( $books );
+				$this->save( 'field_author_au', array_slice( $books, 0, mt_rand( 0, 3 ) ), $authors[ mt_rand( 0, 1 ) ] );
 			}
 		}
-		foreach ( $venues as $venue ) {
-			foreach ( Sync::ids( $this->stored( $venue, 'venue_event_space_relationship' ) ) as $space ) {
-				$this->assertContains( $venue, Sync::ids( $this->stored( $space, 'venue_event_space_relationship' ) ) );
+		foreach ( $books as $book ) {
+			foreach ( Sync::ids( $this->stored( $book, 'book_author_relationship' ) ) as $author ) {
+				$this->assertContains( $book, Sync::ids( $this->stored( $author, 'book_author_relationship' ) ) );
 			}
 		}
-		foreach ( $spaces as $space ) {
-			foreach ( Sync::ids( $this->stored( $space, 'venue_event_space_relationship' ) ) as $venue ) {
-				$this->assertContains( $space, Sync::ids( $this->stored( $venue, 'venue_event_space_relationship' ) ) );
+		foreach ( $authors as $author ) {
+			foreach ( Sync::ids( $this->stored( $author, 'book_author_relationship' ) ) as $book ) {
+				$this->assertContains( $author, Sync::ids( $this->stored( $book, 'book_author_relationship' ) ) );
 			}
 		}
 	}
 
 	/** Stored one-sided, as after an import that bypassed ACF. */
 	private function one_sided(): void {
-		update_post_meta( $this->event, 'event_venue', $this->strings( $this->venue, $this->venue2 ) );
-		update_post_meta( $this->event2, 'event_venue', $this->strings( $this->venue ) );
-		update_post_meta( $this->space, 'venue_event_space_relationship', $this->strings( 999999 ) );
+		update_post_meta( $this->review, 'review_book', $this->strings( $this->book, $this->book2 ) );
+		update_post_meta( $this->review2, 'review_book', $this->strings( $this->book ) );
+		update_post_meta( $this->author, 'book_author_relationship', $this->strings( 999999 ) );
 	}
 
 	public function test_repair_dry_run_reports_and_writes_nothing(): void {
@@ -285,36 +285,36 @@ final class SyncTest extends WP_UnitTestCase {
 		$counts = Cli::run( true );
 		$this->assertSame( 3, $counts['added'] );
 		$this->assertSame( 1, $counts['dangling'] );
-		$this->assertSame( '', $this->stored( $this->venue, 'event_venue' ) );
+		$this->assertSame( '', $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_repair_adds_back_links_in_order_and_is_idempotent(): void {
 		$this->one_sided();
 		$counts = Cli::run( false );
 		$this->assertSame( 3, $counts['added'] );
-		$this->assertSame( $this->strings( $this->event, $this->event2 ), $this->stored( $this->venue, 'event_venue' ) );
-		$this->assertSame( $this->strings( $this->event ), $this->stored( $this->venue2, 'event_venue' ) );
+		$this->assertSame( $this->strings( $this->review, $this->review2 ), $this->stored( $this->book, 'review_book' ) );
+		$this->assertSame( $this->strings( $this->review ), $this->stored( $this->book2, 'review_book' ) );
 		$again = Cli::run( false );
 		$this->assertSame( 0, $again['added'] );
-		$this->assertSame( $this->strings( $this->event, $this->event2 ), $this->stored( $this->venue, 'event_venue' ) );
+		$this->assertSame( $this->strings( $this->review, $this->review2 ), $this->stored( $this->book, 'review_book' ) );
 	}
 
 	public function test_repair_leaves_a_full_single_side_alone_and_counts_it(): void {
-		update_post_meta( $this->venue, 'venue_parent_precinct', (string) $this->precinct );
-		$other = self::factory()->post->create( array( 'post_type' => 'precinct' ) );
-		update_post_meta( $other, 'venue_parent_precinct', $this->strings( $this->venue ) );
+		update_post_meta( $this->book, 'book_parent_series', (string) $this->series );
+		$other = self::factory()->post->create( array( 'post_type' => 'series' ) );
+		update_post_meta( $other, 'book_parent_series', $this->strings( $this->book ) );
 		$counts = Cli::run( false );
 		$this->assertSame( 1, $counts['full'] );
-		$this->assertSame( (string) $this->precinct, $this->stored( $this->venue, 'venue_parent_precinct' ) );
+		$this->assertSame( (string) $this->series, $this->stored( $this->book, 'book_parent_series' ) );
 	}
 
 	public function test_repair_batches_past_one_page(): void {
-		$events = self::factory()->post->create_many( 205, array( 'post_type' => 'event' ) );
-		foreach ( $events as $event ) {
-			update_post_meta( $event, 'event_venue', $this->strings( $this->venue ) );
+		$reviews = self::factory()->post->create_many( 205, array( 'post_type' => 'review' ) );
+		foreach ( $reviews as $review ) {
+			update_post_meta( $review, 'review_book', $this->strings( $this->book ) );
 		}
 		$this->assertSame( 205, Cli::run( false )['added'] );
-		$this->assertCount( 205, Sync::ids( $this->stored( $this->venue, 'event_venue' ) ) );
+		$this->assertCount( 205, Sync::ids( $this->stored( $this->book, 'review_book' ) ) );
 	}
 
 	public function test_notice_shows_only_when_acf_is_missing_and_user_can_activate_plugins(): void {
